@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-app
+  labels:
+    app: example-app
+spec:
+  replicas: 3  # Число подов. По условию: 3 пода справляются с нагрузкой
+  selector:
+    matchLabels:
+      app: example-app
+  template:
+    metadata:
+      labels:
+        app: example-app
+    spec:
+      containers:
+      - name: example-app-container
+        image: example-app-image:latest  # Образ контейнера с приложением
+        resources:
+          requests:
+            memory: "128Mi"  # Минимальное количество памяти для приложения по условию: 
+            cpu: "0.1"  # Минимальное потребление CPU после инициализации
+          limits:
+            memory: "256Mi"  # Установим лимит памяти немного выше для предотвращения превышения
+            cpu: "0.5"  # Установим лимит по CPU значительно больше минимального потребления для первых запросов при старте
+        ports:
+        - containerPort: 80  # Порт приложения
+        readinessProbe:  # Пробинг готовности контейнера принимать запросы
+          httpGet:
+            path: /healthz  # Эндпоинт, возвращающий информацию о состоянии приложения
+            port: 80
+          initialDelaySeconds: 10  # Время, которое потребуется приложению для старта (по условию 5-10 сек)
+          periodSeconds: 5
+        startupProbe:  # Пробинг инициализации (для ожидания полной загрузки)
+          httpGet:
+            path: /healthz
+            port: 80
+          failureThreshold: 3
+          periodSeconds: 10
+      affinity:  # Указание на разнесение подов по разным нодам
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - my-app
+            topologyKey: "kubernetes.io/hostname"  # Гарантируем размещение на разных нодах
